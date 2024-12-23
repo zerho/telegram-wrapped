@@ -1,0 +1,15 @@
+{
+  "name": "telegram-wrapped",
+  "version": "0.0.1",
+  "description": "Script to analyze former telegram and google data",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "zerho",
+  "license": "ISC",
+  "dependencies": {
+    "console-grid": "^2.2.2",
+    "puppeteer": "^23.11.1"
+  }
+}
