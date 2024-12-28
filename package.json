@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "console-grid": "^2.2.2",
+    "csv-stringify": "^6.5.2",
     "puppeteer": "^23.11.1"
   }
 }

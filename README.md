@@ -36,3 +36,10 @@ Timestamp,                          Sender, Message,        MessageId,  ReplyToI
 - i media non sono gestiti
 - quando i replyTo si riferiscono ad un'altra pagine si salva un ID sporco con una stringa in più
 - decidere se tracciare i service messages o altro.
+- [WA] `wa_convert.js` ha ancora un problema, non riesce ad accorpare il testo dei messaggi che vanno a capo con il proprio messaggio padre
+
+## DATA EXPLORATION
+
+sto studiando questa guida
+<https://www.youtube.com/watch?v=QgfkY_M6IEQ&ab_channel=JohanGodinho>
+
