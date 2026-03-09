@@ -1,8 +1,32 @@
 # Telegram Wrapped
 
+## Setup
+
+Requires [Homebrew](https://brew.sh), Node.js, and pyenv.
+
+```bash
+# Install pyenv and a Python version
+brew install pyenv
+pyenv install        # reads .python-version automatically
+
+# Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Install Node dependencies (for the converters)
+npm install
+```
+
+To deactivate the venv: `deactivate`
+VS Code will auto-detect `.venv` as a Jupyter kernel — select it when opening a `.ipynb` file.
+
+soon the project might switch to "Groupchat Wrapped" or something similar,
+it's pretty easy to make the project work with both if we write something that normalizes the input to the same format.
+
 ## Folder Structure
 
-example absolute path `file:///Users/matteototo/spaces/misc/Telegram_DataExport_2024-12-09/chats/chat_003/messages.html`
+example absolute path `file:///Users/zerho6/spaces/misc/Telegram_DataExport_2024-12-09/chats/chat_003/messages.html`
 
 `lists/chats.html`      list of all chats  
 `chats/chat_[number]/`  folder that contains everything about the chat
@@ -42,4 +66,3 @@ Timestamp,                          Sender, Message,        MessageId,  ReplyToI
 
 sto studiando questa guida
 <https://www.youtube.com/watch?v=QgfkY_M6IEQ&ab_channel=JohanGodinho>
-

@@ -5,3 +5,7 @@ exports/*
 
 input_example/*
 !wa_export.txt
+
+raw chat data/
+
+.venv/
