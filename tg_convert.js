@@ -15,17 +15,19 @@ function escapeCsvField(field) {
 function messagesToCsvLines(messages) {
     return messages.map(message => {
         const csvLine = [
+            escapeCsvField(message.platform),
+            escapeCsvField(message.conversation),
             escapeCsvField(message.id),
             escapeCsvField(message.timestamp),
             escapeCsvField(message.sender),
             escapeCsvField(message.text),
-            escapeCsvField(message.replyToId)
+            escapeCsvField(message.reply_to_id)
         ].join(',');
         return csvLine;
     }).join('\n');
 }
 
-async function parseChatFile(page, filePath) {
+async function parseChatFile(page, filePath, conversation) {
     // Load the HTML file
     const fileUrl = `file://${filePath}`;
     await page.goto(fileUrl, { waitUntil: 'networkidle0' });
@@ -54,7 +56,7 @@ async function parseChatFile(page, filePath) {
                 ? (replyElement.getAttribute('href') || '').replace('#go_to_message', '')
                 : '';
 
-            return { id, timestamp, sender, text, replyToId };
+            return { platform: 'tg', conversation, id, timestamp, sender, text, reply_to_id: replyToId };
         });
     });
 
@@ -66,10 +68,12 @@ async function processAllChats(inputFolder) {
         headless: "new"
     });
 
+    const conversation = path.basename(path.resolve(inputFolder));
+
     try {
         const page = await browser.newPage();
         let allMessages = [];
-        
+
         // Get all HTML files in the folder
         const files = fs.readdirSync(inputFolder)
             .filter(file => file.toLowerCase().endsWith('.html'))
@@ -80,10 +84,10 @@ async function processAllChats(inputFolder) {
         // Process each file
         for (const file of files) {
             const filePath = path.join(inputFolder, file);
-            
+
             try {
                 console.log(`Processing ${file}...`);
-                const messages = await parseChatFile(page, filePath);
+                const messages = await parseChatFile(page, filePath, conversation);
                 allMessages = allMessages.concat(messages);
                 console.log(`Successfully processed ${file} - ${messages.length} messages extracted`);
             } catch (error) {
@@ -94,11 +98,13 @@ async function processAllChats(inputFolder) {
         }
 
         // Create CSV content
-        const csvHeader = 'id,timestamp,sender,text,replyToId\n';
+        const csvHeader = 'platform,conversation,id,timestamp,sender,text,reply_to_id\n';
         const csvContent = csvHeader + messagesToCsvLines(allMessages);
 
         // Write final CSV file
-        const outputPath = path.join(process.cwd(), '/exports/all_messages.csv');
+        const outputDir = path.join(process.cwd(), 'formatted', 'tg');
+        fs.mkdirSync(outputDir, { recursive: true });
+        const outputPath = path.join(outputDir, 'all_messages.csv');
         await fs.promises.writeFile(outputPath, csvContent);
         
         console.log(`CSV file created successfully with ${allMessages.length} total messages!`);

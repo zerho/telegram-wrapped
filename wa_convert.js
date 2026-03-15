@@ -17,7 +17,7 @@ function normalizeLines(content) {
             }
             currentMessage = line;
         } else {
-            currentMessage += ' ' + line.trim();
+            currentMessage += '\n' + line.trim();
         }
     }
     
@@ -29,13 +29,13 @@ function normalizeLines(content) {
     return normalizedMessages;
 }
 
-function parseMessage(line) {
+function parseMessage(line, conversation) {
     const dateMatch = line.match(/^\[(.*?)\]/);
     if (!dateMatch) return null;
 
-    const date = dateMatch[1];
+    const timestamp = dateMatch[1];
     const remainingText = line.slice(dateMatch[0].length).trim();
-    
+
     const senderMatch = remainingText.match(/(.*?):/);
     if (!senderMatch) return null;
 
@@ -43,9 +43,13 @@ function parseMessage(line) {
     const text = remainingText.slice(senderMatch[0].length).trim();
 
     return {
-        date,
+        platform: 'wa',
+        conversation,
+        id: '',
+        timestamp,
         sender,
-        text
+        text,
+        reply_to_id: ''
     };
 }
 
@@ -55,17 +59,17 @@ async function convertTxtToCSV(inputFile) {
     
     // Normalize messages
     const normalizedLines = normalizeLines(content);
-    
+    const conversation = path.basename(inputFile, '.txt');
+
     // Parse messages
     const messages = normalizedLines
-        .map(line => parseMessage(line))
+        .map(line => parseMessage(line, conversation))
         .filter(msg => msg !== null);
 
-    // Generate output filename based on input filename
-    const outputFile = path.join(
-        path.dirname(inputFile),
-        `${path.basename(inputFile, '.txt')}_converted.csv`
-    );
+    // Generate output filename in ./formatted/wa/
+    const outputDir = path.join(process.cwd(), 'formatted', 'wa');
+    fs.mkdirSync(outputDir, { recursive: true });
+    const outputFile = path.join(outputDir, `${path.basename(inputFile, '.txt')}.csv`);
 
     // Create CSV write stream
     const writableStream = fs.createWriteStream(outputFile);
@@ -74,9 +78,13 @@ async function convertTxtToCSV(inputFile) {
     const stringifier = csv.stringify({
         header: true,
         columns: [
-            { key: 'date', header: 'date' },
+            { key: 'platform', header: 'platform' },
+            { key: 'conversation', header: 'conversation' },
+            { key: 'id', header: 'id' },
+            { key: 'timestamp', header: 'timestamp' },
             { key: 'sender', header: 'sender' },
-            { key: 'text', header: 'text' }
+            { key: 'text', header: 'text' },
+            { key: 'reply_to_id', header: 'reply_to_id' }
         ],
         quoted: true,      // Quote all fields
         quote: '"',        // Use double quotes
@@ -119,7 +127,6 @@ async function main() {
     try {
         const outputFile = await convertTxtToCSV(inputFile);
         console.log(`Conversion completed successfully!\nOutput saved to: ${outputFile}`);
-        console.warn(`BE AWARE that the file generated has still an issue with messages containing new lines, you'll have to remove them manually with search and replace`);
     } catch (error) {
         console.error('Error during conversion:', error);
         process.exit(1);

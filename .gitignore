@@ -1,12 +1,13 @@
-node_modules
-package-lock.json
-
-exports/*
-!exports/.gitkeep
+# folder structure
+formatted/*
+!formatted/.gitkeep
 
 input_example/*
 !wa_export.txt
 
-raw chat data/
+raw_data/
 
+# dev specific
+node_modules
+package-lock.json
 .venv/
