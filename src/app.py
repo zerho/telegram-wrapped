@@ -19,8 +19,10 @@ STOPWORDS = {
     "quando", "qui", "sa", "se", "sei", "si", "sia", "siamo", "so", "solo",
     "sono", "sta", "stai", "stavo", "su", "sul", "sulla", "sulle", "te", "ti",
     "tra", "tu", "tutti", "tutto", "un", "una", "uno", "vai", "ve", "vi",
-    "voi", "https", "http", "www", "com", "it",
+    "voi", "https", "http", "www", "com", "it", "sto", "due", "fai", "vuoi"
 }
+
+WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
 @st.cache_data
@@ -49,12 +51,22 @@ convs = st.sidebar.multiselect(
     "Conversation", sorted(df["conversation"].dropna().unique()), default=list(df["conversation"].dropna().unique())
 )
 
-filtered = df[df["platform"].isin(platforms) & df["conversation"].isin(convs)]
+filtered = df[df["platform"].isin(platforms) & df["conversation"].isin(convs)].copy()
 
 if filtered.empty:
     st.warning("No messages match the current filters.")
     st.stop()
 
+# --- Summary stats ---
+participants = sorted(filtered["sender"].dropna().unique().tolist())
+first_msg = filtered.loc[filtered["timestamp"].idxmin()]
+last_msg = filtered.loc[filtered["timestamp"].idxmax()]
+
+col_a, col_b, col_c = st.columns(3)
+col_a.metric("First message", first_msg["timestamp"].strftime("%Y-%m-%d"), first_msg["sender"])
+col_b.metric("Last message", last_msg["timestamp"].strftime("%Y-%m-%d"), last_msg["sender"])
+col_c.metric("Participants", len(participants))
+st.caption("**Participants:** " + ", ".join(participants))
 st.caption(f"{len(filtered):,} messages selected")
 
 # --- Chart 1: Messages per sender ---
@@ -71,8 +83,7 @@ fig1 = px.bar(
 fig1.update_layout(yaxis={"categoryorder": "total ascending"})
 st.plotly_chart(fig1, use_container_width=True)
 
-# --- Chart 2: Messages over time ---
-filtered = filtered.copy()
+# --- Chart 2: Messages per month ---
 filtered["month"] = filtered["timestamp"].dt.to_period("M").dt.to_timestamp()
 over_time = filtered.groupby(["month", "conversation"]).size().reset_index(name="count")
 fig2 = px.line(
@@ -85,20 +96,34 @@ fig2 = px.line(
 )
 st.plotly_chart(fig2, use_container_width=True)
 
-# --- Chart 3: Activity by hour ---
-filtered["hour"] = filtered["timestamp"].dt.hour
-by_hour = filtered.groupby("hour").size().reset_index(name="count")
+# --- Chart 3: Messages per weekday ---
+filtered["weekday"] = filtered["timestamp"].dt.day_name()
+by_weekday = filtered.groupby("weekday").size().reindex(WEEKDAY_ORDER).reset_index(name="count")
 fig3 = px.bar(
-    by_hour,
-    x="hour",
+    by_weekday,
+    x="weekday",
     y="count",
-    title="Activity by hour of day",
-    labels={"hour": "Hour (UTC)", "count": "Messages"},
+    title="Messages by day of week",
+    labels={"weekday": "", "count": "Messages"},
 )
-fig3.update_xaxes(dtick=1)
 st.plotly_chart(fig3, use_container_width=True)
 
-# --- Chart 4: Top words ---
+# --- Chart 4: Activity by hour (stacked by sender) ---
+filtered["hour"] = filtered["timestamp"].dt.hour
+by_hour_sender = filtered.groupby(["hour", "sender"]).size().reset_index(name="count")
+fig4 = px.bar(
+    by_hour_sender,
+    x="hour",
+    y="count",
+    color="sender",
+    title="Activity by hour of day",
+    labels={"hour": "Hour (UTC)", "count": "Messages", "sender": "Sender"},
+    barmode="stack",
+)
+fig4.update_xaxes(dtick=1)
+st.plotly_chart(fig4, use_container_width=True)
+
+# --- Chart 5: Top words ---
 st.subheader("Top words")
 col1, col2 = st.columns([1, 3])
 with col1:
@@ -109,12 +134,12 @@ with col1:
 
 word_source = filtered if sender_filter == "All" else filtered[filtered["sender"] == sender_filter]
 all_text = " ".join(word_source["text"].dropna().astype(str).str.lower())
-words = re.findall(r"\b[a-záàéèíìóòúùâêîôûäëïöüã]{3,}\b", all_text)
+words = re.findall(r"\b[a-záàéèíìóòúùâêîôûäëïöüã]{4,}\b", all_text)
 word_counts = Counter(w for w in words if w not in STOPWORDS)
 top_words = pd.DataFrame(word_counts.most_common(top_n), columns=["word", "count"])
 
 with col2:
-    fig4 = px.bar(
+    fig5 = px.bar(
         top_words,
         x="count",
         y="word",
@@ -122,5 +147,24 @@ with col2:
         title=f"Top {top_n} words" + (f" — {sender_filter}" if sender_filter != "All" else ""),
         labels={"count": "Occurrences", "word": ""},
     )
-    fig4.update_layout(yaxis={"categoryorder": "total ascending"})
-    st.plotly_chart(fig4, use_container_width=True)
+    fig5.update_layout(yaxis={"categoryorder": "total ascending"})
+    st.plotly_chart(fig5, use_container_width=True)
+
+# --- Fun facts per person ---
+st.subheader("Fun facts per person")
+
+def person_stats(grp):
+    texts = grp["text"].dropna().astype(str)
+    all_words = " ".join(texts.str.lower()).split()
+    char_lengths = texts.str.len()
+    return pd.Series({
+        "messages": len(grp),
+        "total_words": len(all_words),
+        "avg_msg_length": round(char_lengths.mean(), 1),
+        "unique_words": len(set(all_words)),
+        "longest_msg_chars": int(char_lengths.max()),
+    })
+
+stats = filtered.groupby("sender").apply(person_stats).reset_index()
+stats.columns = ["Sender", "Messages", "Total words", "Avg msg length", "Unique words", "Longest msg (chars)"]
+st.dataframe(stats.set_index("Sender"), use_container_width=True)

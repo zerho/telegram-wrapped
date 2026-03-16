@@ -26,13 +26,19 @@ VS Code auto-detects `.venv` as a Jupyter kernel.
 
 ```bash
 # Telegram: convert HTML export folder to CSV
-node tg_convert.js <input-folder>
+node src/tg_convert.js <input-folder>
 # Default input folder: ./chats
-# Output: ./exports/all_messages.csv
+# Output: ./formatted/tg/<name>.csv
 
 # WhatsApp: convert TXT export to CSV
-node wa_convert.js <input-file>
-# Example: node wa_convert.js "raw chat data/mino_chat_formatted.txt"
+node src/wa_convert.js <input-file>
+# Example: node src/wa_convert.js "raw chat data/mino_chat_formatted.txt"
+
+# Load CSVs into SQLite
+python src/load_db.py
+
+# Run the Streamlit dashboard
+streamlit run src/app.py
 ```
 
 ### Installing dependencies

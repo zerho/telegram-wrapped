@@ -21,7 +21,7 @@ for f in glob("formatted/tg/*.csv"):
 
 if not dfs:
     print("No CSV files found in formatted/wa/ or formatted/tg/")
-    print("Run the converters first: node tg_convert.js <folder> / node wa_convert.js <file>")
+    print("Run the converters first: node src/tg_convert.js <folder> / node src/wa_convert.js <file>")
     exit(1)
 
 df = pd.concat(dfs, ignore_index=True)

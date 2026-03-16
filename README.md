@@ -25,19 +25,19 @@ VS Code will auto-detect `.venv` as a Jupyter kernel — select it when opening 
 
 ```bash
 # Telegram: pass the chat folder (contains messages.html, messages2.html, ...)
-node tg_convert.js ../Telegram_DataExport_2024-12-09/chats/chat_008/
+node src/tg_convert.js ../Telegram_DataExport_2024-12-09/chats/chat_008/
 # Output: formatted/tg/<folder-name>.csv
 
 # WhatsApp: pass a single .txt export file
-node wa_convert.js "raw chat data/mino_chat_formatted.txt"
+node src/wa_convert.js "raw chat data/mino_chat_formatted.txt"
 # Output: formatted/wa/<file-name>.csv
 ```
 
 ## Dashboard
 
 ```bash
-python load_db.py        # loads all formatted/tg/ and formatted/wa/ CSVs into chat.db
-streamlit run app.py     # opens the Streamlit dashboard
+python src/load_db.py        # loads all formatted/tg/ and formatted/wa/ CSVs into chat.db
+streamlit run src/app.py     # opens the Streamlit dashboard
 ```
 
 ---
