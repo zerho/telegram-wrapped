@@ -29,11 +29,11 @@ function messagesToCsvLines(messages) {
 
 async function parseChatFile(page, filePath, conversation) {
     // Load the HTML file
-    const fileUrl = `file://${filePath}`;
+    const fileUrl = `file://${path.resolve(filePath)}`;
     await page.goto(fileUrl, { waitUntil: 'networkidle0' });
 
     // Extract messages data
-    const messages = await page.evaluate(() => {
+    const messages = await page.evaluate((conversation) => {
         let lastSender = '';
         const messageElements = document.querySelectorAll('.message.default.clearfix');
         
@@ -58,7 +58,7 @@ async function parseChatFile(page, filePath, conversation) {
 
             return { platform: 'tg', conversation, id, timestamp, sender, text, reply_to_id: replyToId };
         });
-    });
+    }, conversation);
 
     return messages;
 }
@@ -104,7 +104,7 @@ async function processAllChats(inputFolder) {
         // Write final CSV file
         const outputDir = path.join(process.cwd(), 'formatted', 'tg');
         fs.mkdirSync(outputDir, { recursive: true });
-        const outputPath = path.join(outputDir, 'all_messages.csv');
+        const outputPath = path.join(outputDir, `${conversation}.csv`);
         await fs.promises.writeFile(outputPath, csvContent);
         
         console.log(`CSV file created successfully with ${allMessages.length} total messages!`);

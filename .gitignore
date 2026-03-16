@@ -7,6 +7,8 @@ input_example/*
 
 raw_data/
 
+chat.db
+
 # dev specific
 node_modules
 package-lock.json
