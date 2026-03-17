@@ -36,8 +36,9 @@ node src/wa_convert.js "raw chat data/mino_chat_formatted.txt"
 ## Dashboard
 
 ```bash
-python src/load_db.py        # loads all formatted/tg/ and formatted/wa/ CSVs into chat.db
-streamlit run src/app.py     # opens the Streamlit dashboard
+python src/load_db.py              # loads all formatted/tg/ and formatted/wa/ CSVs into chat.db
+python src/analyze_sentiment.py   # one-time sentiment scoring, ~30-120 min depending on hardware
+streamlit run src/app.py           # opens the Streamlit dashboard
 ```
 
 ---

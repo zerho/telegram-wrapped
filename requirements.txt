@@ -104,3 +104,5 @@ widgetsnbextension==4.0.15
 zipp==3.23.0
 streamlit
 plotly
+torch>=2.1.0
+transformers>=4.35.0

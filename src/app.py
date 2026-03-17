@@ -2,6 +2,7 @@ import sqlite3
 from collections import Counter
 import re
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -23,6 +24,24 @@ STOPWORDS = {
 }
 
 WEEKDAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+@st.cache_data
+def load_sentiment():
+    try:
+        con = sqlite3.connect("chat.db")
+        # Check table exists before querying
+        exists = con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='sentiment'"
+        ).fetchone()
+        if not exists:
+            con.close()
+            return None
+        df = pd.read_sql("SELECT * FROM sentiment", con)
+        con.close()
+        return df
+    except Exception:
+        return None
 
 
 @st.cache_data
@@ -154,17 +173,147 @@ with col2:
 st.subheader("Fun facts per person")
 
 def person_stats(grp):
-    texts = grp["text"].dropna().astype(str)
+    texts = grp["text"].dropna().astype(str).str.strip()
+    texts = texts[texts != ""]
     all_words = " ".join(texts.str.lower()).split()
     char_lengths = texts.str.len()
     return pd.Series({
         "messages": len(grp),
         "total_words": len(all_words),
-        "avg_msg_length": round(char_lengths.mean(), 1),
+        "avg_msg_length": round(char_lengths.mean(), 1) if not char_lengths.empty else 0.0,
         "unique_words": len(set(all_words)),
-        "longest_msg_chars": int(char_lengths.max()),
+        "longest_msg_chars": int(char_lengths.max()) if not char_lengths.empty else 0,
     })
 
 stats = filtered.groupby("sender").apply(person_stats).reset_index()
 stats.columns = ["Sender", "Messages", "Total words", "Avg msg length", "Unique words", "Longest msg (chars)"]
 st.dataframe(stats.set_index("Sender"), use_container_width=True)
+
+# --- Sentiment Analysis ---
+st.subheader("Sentiment Analysis")
+
+sdf = load_sentiment()
+
+if sdf is None:
+    st.info("Run `python src/analyze_sentiment.py` to generate sentiment data.")
+else:
+    # Apply the same sidebar filters to sentiment data
+    sdf = sdf[sdf["platform"].isin(platforms) & sdf["conversation"].isin(convs)].copy()
+
+    if sdf.empty:
+        st.info("No sentiment data for the current filters.")
+    else:
+        # Signed score: +score if positive, -score if negative
+        sdf["signed_score"] = sdf.apply(
+            lambda r: r["score"] if r["label"] == "positive" else -r["score"], axis=1
+        )
+
+        # --- Chart A: Per-sender positivity index ---
+        positivity = (
+            sdf.groupby("sender")["signed_score"]
+            .mean()
+            .reset_index(name="positivity_index")
+            .sort_values("positivity_index")
+        )
+        positivity["color"] = positivity["positivity_index"].apply(
+            lambda x: "positive" if x >= 0 else "negative"
+        )
+        fig_a = px.bar(
+            positivity,
+            x="positivity_index",
+            y="sender",
+            orientation="h",
+            color="color",
+            color_discrete_map={"positive": "#2ecc71", "negative": "#e74c3c"},
+            title="Chart A — Per-sender positivity index (mean signed sentiment score)",
+            labels={"positivity_index": "Mean signed score (−1 to +1)", "sender": ""},
+        )
+        fig_a.update_layout(yaxis={"categoryorder": "total ascending"}, showlegend=False)
+        st.plotly_chart(fig_a, use_container_width=True)
+        st.caption("WhatsApp messages are included here. Negative = tends negative, Positive = tends positive.")
+
+        # Controls for heatmaps B and C
+        col_s1, col_s2 = st.columns([1, 2])
+        with col_s1:
+            min_replies = st.slider("Minimum reply count to show (Charts B & C)", 1, 20, 3)
+            include_inferred = st.checkbox(
+                "Include WhatsApp inferred replies in Charts B & C", value=False
+            )
+
+        # Filter to reply rows
+        reply_df = sdf[sdf["reply_target"].notna()].copy()
+        if not include_inferred:
+            reply_df = reply_df[reply_df["reply_source"] != "inferred"]
+
+        if reply_df.empty:
+            st.info("No reply data available for Charts B & C with current settings.")
+        else:
+            # Compute reply count matrix (for masking low-count cells)
+            count_matrix = (
+                reply_df.groupby(["sender", "reply_target"])
+                .size()
+                .reset_index(name="count")
+            )
+            count_pivot = count_matrix.pivot(
+                index="sender", columns="reply_target", values="count"
+            ).fillna(0)
+
+            # Mask cells below minimum
+            mask = count_pivot >= min_replies
+
+            # Sentiment heatmap
+            sent_matrix = (
+                reply_df.groupby(["sender", "reply_target"])["signed_score"]
+                .mean()
+                .reset_index(name="mean_score")
+            )
+            sent_pivot = sent_matrix.pivot(
+                index="sender", columns="reply_target", values="mean_score"
+            )
+
+            # Apply mask: NaN out low-count cells in both pivots
+            all_senders = sorted(
+                set(sent_pivot.index.tolist()) | set(count_pivot.index.tolist())
+            )
+            all_targets = sorted(
+                set(sent_pivot.columns.tolist()) | set(count_pivot.columns.tolist())
+            )
+            sent_pivot = sent_pivot.reindex(index=all_senders, columns=all_targets)
+            count_pivot = count_pivot.reindex(index=all_senders, columns=all_targets).fillna(0)
+            mask = count_pivot >= min_replies
+            sent_pivot_masked = sent_pivot.where(mask)
+
+            # --- Chart B: Directional reply sentiment heatmap ---
+            fig_b = px.imshow(
+                sent_pivot_masked,
+                color_continuous_scale="RdYlGn",
+                color_continuous_midpoint=0,
+                title="Chart B — Reply sentiment heatmap (row = replier, col = replied-to)",
+                labels={"color": "Mean signed score"},
+                aspect="auto",
+            )
+            fig_b.update_xaxes(title="Replied-to person")
+            fig_b.update_yaxes(title="Replier")
+            st.plotly_chart(fig_b, use_container_width=True)
+            st.caption(
+                "Red cell = replier tends to reply negatively to that person. "
+                "Cells with fewer than the minimum reply count are hidden."
+            )
+
+            # --- Chart C: Reply volume heatmap ---
+            count_pivot_masked = count_pivot.where(mask).replace(0, np.nan)
+            fig_c = px.imshow(
+                count_pivot_masked,
+                color_continuous_scale="Blues",
+                title="Chart C — Reply volume heatmap (contextualises Chart B)",
+                labels={"color": "Reply count"},
+                aspect="auto",
+            )
+            fig_c.update_xaxes(title="Replied-to person")
+            fig_c.update_yaxes(title="Replier")
+            st.plotly_chart(fig_c, use_container_width=True)
+            st.caption(
+                "Low-count cells in Chart B may be noise. "
+                + ("WhatsApp inferred replies included." if include_inferred
+                   else "WhatsApp inferred replies excluded (toggle above to include).")
+            )
